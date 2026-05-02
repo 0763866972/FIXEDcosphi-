@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Dòng Công Suất & Điều Khiển Fixed Cos Phi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+
+        .flow-line {
+            position: relative;
+            background-color: #cbd5e1;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .arrow-flow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-left: 10px solid #3b82f6; 
+            animation: flowAnimation 2.5s linear infinite;
+        }
+        
+        .arrow-flow-reverse {
+             border-left: none;
+             border-right: 10px solid #ef4444; 
+             animation: flowAnimationReverse 2.5s linear infinite;
+        }
+
+        .arrow-flow-pv {
+             border-left: none; 
+             border-right: 10px solid #eab308; 
+             animation: flowAnimationReverse 2.5s linear infinite;
+        }
+
+        .arrow-flow-dc {
+             border-left: none; 
+             border-right: 10px solid #f59e0b; /* Màu cam sậm hơn cho DC */
+             animation: flowAnimationReverse 2s linear infinite;
+        }
+
+        /* Q flow chạy dọc toàn tuyến */
+        .arrow-flow-q-hut {
+             border-left: 10px solid #0284c7; 
+             animation: flowAnimation 3s linear infinite;
+        }
+
+        .arrow-flow-q-phat {
+             border-left: none;
+             border-right: 10px solid #0284c7; 
+             animation: flowAnimationReverse 3s linear infinite;
+        }
+        
+        /* Hiệu ứng nhánh tải */
+        .arrow-flow-load {
+             border-left: 10px solid #8b5cf6; 
+        }
+
+        .arrow-flow-down {
+            top: 0%;
+            left: 50%;
+            transform: translateX(-50%) rotate(90deg);
+            animation: flowAnimationDown 2s linear infinite;
+        }
+
+        @keyframes flowAnimation {
+            0% { left: 0%; opacity: 0;}
+            10% { opacity: 1;}
+            90% { opacity: 1;}
+            100% { left: 100%; opacity: 0;}
+        }
+        
+        @keyframes flowAnimationReverse {
+            0% { right: 0%; opacity: 0;}
+            10% { opacity: 1;}
+            90% { opacity: 1;}
+            100% { right: 100%; opacity: 0;}
+        }
+
+        @keyframes flowAnimationDown {
+            0% { top: -10%; opacity: 0;}
+            10% { opacity: 1;}
+            90% { opacity: 1;}
+            100% { top: 110%; opacity: 0;}
+        }
+
+        .node-circle {
+            width: 20px;
+            height: 20px;
+            background-color: #475569;
+            border-radius: 50%;
+            z-index: 20;
+            border: 3px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Custom Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        /* Slider Colors */
+        #slider_pv::-webkit-slider-thumb { color: #eab308; background: #eab308; }
+        #slider_load::-webkit-slider-thumb { color: #8b5cf6; background: #8b5cf6; }
+        #slider_pf::-webkit-slider-thumb { color: #0ea5e9; background: #0ea5e9; }
+
+        .math-block {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #f8fafc;
+            color: #334155;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            box-shadow: inset 0 0 0 1px #e2e8f0;
+            line-height: 1.6;
+            font-size: 0.85rem;
+        }
+
+        .math-block strong { font-weight: 700; color: #0f172a; }
+        
+        .panel-normal { border-top: 5px solid #94a3b8; }
+        .panel-fixed { border-top: 5px solid #10b981; }
+
+        /* Họa tiết cho tấm pin PV */
+        .pv-panel {
+            background: linear-gradient(135deg, #1e3a8a 25%, transparent 25%) -4px 0,
+                        linear-gradient(225deg, #1e3a8a 25%, transparent 25%) -4px 0,
+                        linear-gradient(315deg, #1e3a8a 25%, transparent 25%),
+                        linear-gradient(45deg, #1e3a8a 25%, transparent 25%);
+            background-size: 8px 8px;
+            background-color: #1e40af;
+        }
+    </style>
+</head>
+<body class="p-2 md:p-6 text-slate-800">
+
+    <div class="max-w-[1400px] mx-auto space-y-6">
+        
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h1 class="text-2xl font-bold text-slate-900 mb-1 text-blue-800">So Sánh: Hệ Thống Điện Mặt Trời Không Bù vs. Có Điều Khiển Fixed Cos Phi</h1>
+            <p class="text-slate-600 text-sm">Mô phỏng đường truyền công suất từ Tấm Pin (DC) qua Biến Tần (AC) và khả năng hấp thụ/phát công suất phản kháng (Q) để ổn định áp.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            <div class="lg:col-span-1 space-y-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 sticky top-6">
+                    <h2 class="text-base font-bold border-b pb-2 mb-4 flex items-center text-slate-800">
+                        🎛️ Bảng Điều Khiển
+                    </h2>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="font-bold text-sm text-yellow-600">Công suất Tấm Pin (P<sub>pv</sub>)</label>
+                                <span id="val_pv" class="font-bold text-yellow-700 bg-yellow-50 px-2 rounded border border-yellow-200 text-xs py-1">0 W</span>
+                            </div>
+                            <input type="range" id="slider_pv" min="0" max="30000" step="500" value="25000">
+                            <p class="text-xs text-slate-400 mt-1">Kéo cao sẽ gây đẩy ngược lưới (quá áp)</p>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="font-bold text-sm text-purple-600">Công suất Tải (P<sub>load</sub>)</label>
+                                <span id="val_load" class="font-bold text-purple-700 bg-purple-50 px-2 rounded border border-purple-200 text-xs py-1">5000 W</span>
+                            </div>
+                            <input type="range" id="slider_load" min="0" max="30000" step="500" value="5000">
+                            <p class="text-xs text-slate-400 mt-1">Kéo cao sẽ gây kéo dòng lớn (sụt áp)</p>
+                        </div>
+
+                        <div class="p-4 bg-sky-50 rounded-lg border border-sky-100 shadow-sm">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="font-bold text-sm text-sky-700">Cos Phi Inverter</label>
+                                <span id="val_pf" class="font-bold text-white bg-sky-600 px-2 rounded text-xs py-1">1.0</span>
+                            </div>
+                            <input type="range" id="slider_pf" min="-20" max="20" step="1" value="-10">
+                            <div class="flex justify-between text-[10px] font-bold mt-2 text-sky-700 uppercase">
+                                <span>Hút Q (-0.8)</span>
+                                <span>1.0</span>
+                                <span>Phát Q (0.8)</span>
+                            </div>
+                            <p id="pf_status_text" class="text-xs text-sky-800 mt-3 font-medium text-center bg-white p-2 rounded border border-sky-100">Inverter đang HÚT Q để giảm điện áp.</p>
+                        </div>
+
+                        <div class="bg-slate-50 p-4 rounded-lg text-sm grid grid-cols-2 gap-3 border border-slate-200">
+                            <div><span class="text-slate-500 text-[10px] uppercase block">U Lưới (Nguồn)</span> <b class="text-slate-800 text-base">230 V</b></div>
+                            <div><span class="text-slate-500 text-[10px] uppercase block">Q Tải nền</span> <b class="text-slate-800 text-base">500 VAr</b></div>
+                            <div><span class="text-slate-500 text-[10px] uppercase block">R Dây</span> <b class="text-slate-800 text-base">0.5 Ω</b></div>
+                            <div><span class="text-slate-500 text-[10px] uppercase block">X Dây</span> <b class="text-slate-800 text-base">0.1 Ω</b></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-3 space-y-6">
+                
+                <!-- ==============================
+                     HỆ THỐNG 1: KHÔNG BÙ
+                     ============================== -->
+                <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden panel-normal flex flex-col">
+                    <div class="bg-slate-100 p-3 border-b border-slate-200 flex justify-between items-center px-6">
+                        <div>
+                            <h3 class="font-black text-slate-700 text-base uppercase tracking-wide">1. Chế Độ Mặc Định (Cos φ = 1)</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Inverter không can thiệp Q (Q_inv = 0)</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm font-bold text-slate-700">Điện áp PCC: <span id="vpcc_val_title_1" class="text-lg text-blue-600">230.0V</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="relative h-48 w-full p-4 flex-grow bg-slate-50/50">
+                        <!-- Lưới -->
+                        <div class="absolute left-[8%] top-1/2 -translate-y-1/2 -translate-x-1/2 text-center z-10">
+                            <div class="w-12 h-12 bg-slate-800 rounded flex items-center justify-center text-white font-bold mx-auto text-xl shadow-sm">~</div>
+                            <span class="text-[10px] font-bold text-slate-600 mt-2 block">LƯỚI</span>
+                        </div>
+
+                        <!-- Đường Lưới - PCC -->
+                        <div class="absolute left-[11%] right-[57%] top-1/2 -translate-y-1/2 h-1.5 flex items-center">
+                            <div id="flow_grid_1" class="flow-line w-full h-full relative">
+                                <div class="arrow-flow"></div>
+                            </div>
+                        </div>
+                        <div class="absolute left-[26%] top-1/2 -translate-y-8 -translate-x-1/2">
+                            <span id="delta_u_1" class="text-sm font-bold px-3 py-1 rounded-full bg-white border border-slate-300 shadow-sm text-slate-700">+0V</span>
+                        </div>
+
+                        <!-- PCC -->
+                        <div class="absolute left-[45%] top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center z-20">
+                            <div class="node-circle w-6 h-6 border-4"></div>
+                            <div id="pcc_tag_1" class="absolute -top-10 bg-slate-600 text-white px-3 py-1 rounded-md text-base font-bold transition-colors shadow-md whitespace-nowrap">
+                                230.0V
+                            </div>
+                        </div>
+
+                        <!-- Tải (Đã khôi phục hiệu ứng dòng chảy xuống) -->
+                        <div class="absolute left-[45%] top-1/2 pt-4 -translate-x-1/2 flex flex-col items-center z-10">
+                            <div class="w-1.5 h-10 flow-line mb-1 relative">
+                                <div class="arrow-flow arrow-flow-down arrow-flow-load"></div>
+                            </div>
+                            <div class="w-10 h-10 bg-purple-500 rounded text-white flex items-center justify-center text-xs font-bold shadow-sm">TẢI</div>
+                        </div>
+
+                        <!-- Đường INV - PCC -->
+                        <div class="absolute left-[48%] right-[28%] top-1/2 -translate-y-1/2 h-1.5 z-10">
+                            <div id="flow_inv_pcc_1" class="flow-line w-full h-full relative"><div class="arrow-flow arrow-flow-pv"></div></div>
+                        </div>
+
+                        <!-- INV -->
+                        <div class="absolute left-[75%] top-1/2 -translate-y-1/2 -translate-x-1/2 text-center z-10">
+                            <div class="w-12 h-12 bg-yellow-400 rounded flex items-center justify-center mx-auto text-slate-900 font-black text-sm shadow-sm border-2 border-yellow-500">INV</div>
+                            <span class="text-[10px] font-bold text-slate-600 block mt-2 bg-white px-2 py-0.5 border rounded">Q = 0</span>
+                        </div>
+                        
+                        <!-- Đường PV - INV (DC) -->
+                        <div class="absolute left-[78%] right-[8%] top-1/2 -translate-y-1/2 h-1.5 z-10">
+                            <div id="flow_pv_inv_1" class="flow-line w-full h-full relative bg-yellow-200"><div class="arrow-flow arrow-flow-dc"></div></div>
+                        </div>
+
+                        <!-- PV -->
+                        <div class="absolute left-[95%] top-1/2 -translate-y-1/2 -translate-x-1/2 text-center z-10">
+                            <div class="w-12 h-12 pv-panel rounded-sm flex items-center justify-center mx-auto shadow-md border-2 border-blue-400">
+                                <span class="text-white font-black text-sm z-10 drop-shadow-md">PV</span>
+                            </div>
+                            <span class="text-[10px] font-bold text-slate-600 block mt-2 px-1">DC Power</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 border-t border-slate-100 bg-white">
+                        <div class="math-block text-sm flex flex-col gap-1.5">
+                            <div>P_net = P_inv - P_load = <span id="pnet_val_1" class="font-bold text-slate-800"></span> W</div>
+                            <div>Q_net = 0 - 500 = <strong>-500</strong> VAr</div>
+                            <div>ΔV = (P_net×0.5 + Q_net×0.1)/230 = <strong class="text-base"><span id="dv_val_1"></span> V</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- ==============================
+                     HỆ THỐNG 2: CÓ BÙ
+                     ============================== -->
+                <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden panel-fixed flex flex-col">
+                    <div class="bg-emerald-50/80 p-3 border-b border-emerald-200 flex justify-between items-center px-6">
+                        <div>
+                            <h3 class="font-black text-emerald-800 text-base uppercase tracking-wide">2. Có Bù (Fixed Cos φ = <span id="lbl_pf_title"></span>)</h3>
+                            <p id="lbl_q_action" class="text-xs text-emerald-600 font-bold mt-0.5">Inverter tham gia bơm/hút Q</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm font-bold text-emerald-800">Điện áp PCC Mới: <span id="vpcc_val_title_2" class="text-lg text-emerald-600">230.0V</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="relative h-48 w-full p-4 flex-grow bg-slate-50/50">
+                        <!-- Lưới -->
+                        <div class="absolute left-[8%] top-1/2 -translate-y-1/2 -translate-x-1/2 text-center z-10">
+                            <div class="w-12 h-12 bg-slate-800 rounded flex items-center justify-center text-white font-bold mx-auto text-xl shadow-sm">~</div>
+                            <span class="text-[10px] font-bold text-slate-600 mt-2 block">LƯỚI</span>
+                        </div>
+
+                        <!-- Đường Lưới - PCC -->
+                        <div class="absolute left-[11%] right-[57%] top-1/2 -translate-y-1/2 h-1.5 flex items-center z-10">
+                            <div id="flow_grid_2" class="flow-line w-full h-full relative">
+                                <div class="arrow-flow"></div>
+                            </div>
+                        </div>
+                        <div class="absolute left-[26%] top-1/2 -translate-y-8 -translate-x-1/2">
+                            <span id="delta_u_2" class="text-sm font-bold px-3 py-1 rounded-full bg-white border border-emerald-300 text-emerald-700 shadow-sm">+0V</span>
+                        </div>
+
+                        <!-- ĐƯỜNG CHẠY Q XUYÊN SUỐT (Lưới <-> INV) -->
+                        <div class="absolute left-[11%] right-[28%] top-1/2 mt-2.5 -translate-y-1/2 h-1.5 z-0">
+                            <div id="flow_q_continuous" class="flow-line w-full h-full relative bg-sky-200/60" style="display:none;">
+                                <div class="arrow-flow"></div>
+                            </div>
+                        </div>
+
+                        <!-- PCC -->
+                        <div class="absolute left-[45%] top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center z-20">
+                            <div class="node-circle w-6 h-6 border-4 border-emerald-500 bg-emerald-100"></div>
+                            <div id="pcc_tag_2" class="absolute -top-10 bg-emerald-600 text-white px-3 py-1 rounded-md text-base font-bold transition-colors shadow-md shadow-emerald-200 whitespace-nowrap">
+                                230.0V
+                            </div>
+                        </div>
+
+                        <!-- Tải (Đã khôi phục hiệu ứng dòng chảy xuống) -->
+                        <div class="absolute left-[45%] top-1/2 pt-4 -translate-x-1/2 flex flex-col items-center z-10">
+                            <div class="w-1.5 h-10 flow-line mb-1 relative">
+                                <div class="arrow-flow arrow-flow-down arrow-flow-load"></div>
+                            </div>
+                            <div class="w-10 h-10 bg-purple-500 rounded text-white flex items-center justify-center text-xs font-bold shadow-sm">TẢI</div>
+                        </div>
+
+                        <!-- Đường INV - PCC -->
+                        <div class="absolute left-[48%] right-[28%] top-1/2 -translate-y-1/2 h-1.5 z-10">
+                            <div id="flow_inv_pcc_2" class="flow-line w-full h-full relative"><div class="arrow-flow arrow-flow-pv"></div></div>
+                        </div>
+
+                        <!-- INV -->
+                        <div class="absolute left-[75%] top-1/2 -translate-y-1/2 -translate-x-1/2 text-center z-20">
+                            <div class="w-12 h-12 bg-yellow-400 border-[3px] border-emerald-400 rounded flex items-center justify-center mx-auto text-slate-900 font-black text-sm shadow-md">INV</div>
+                            <span id="q_pv_display" class="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-300 mt-2 block shadow-sm whitespace-nowrap">Q = 0</span>
+                        </div>
+                        
+                        <!-- Đường PV - INV (DC) -->
+                        <div class="absolute left-[78%] right-[8%] top-1/2 -translate-y-1/2 h-1.5 z-10">
+                            <div id="flow_pv_inv_2" class="flow-line w-full h-full relative bg-yellow-200"><div class="arrow-flow arrow-flow-dc"></div></div>
+                        </div>
+
+                        <!-- PV -->
+                        <div class="absolute left-[95%] top-1/2 -translate-y-1/2 -translate-x-1/2 text-center z-10">
+                            <div class="w-12 h-12 pv-panel rounded-sm flex items-center justify-center mx-auto shadow-md border-2 border-blue-400">
+                                <span class="text-white font-black text-sm z-10 drop-shadow-md">PV</span>
+                            </div>
+                            <span class="text-[10px] font-bold text-slate-600 block mt-2 px-1">DC Power</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 border-t border-slate-100 bg-white">
+                        <div class="math-block text-sm !border-emerald-500 bg-emerald-50/30 flex flex-col gap-1.5">
+                            <div>Q_inv = P_pv × tan(φ) = <span id="qpv_val_2" class="font-bold text-sky-600"></span></div>
+                            <div>Q_net = Q_inv - 500 = <strong id="qnet_val_2" class="text-slate-800"></strong> VAr</div>
+                            <div>ΔV_mới = (P_net×0.5 + Q_net×0.1)/230 = <strong class="text-base"><span id="dv_val_2"></span> V</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold mb-4 flex justify-between items-center border-b pb-3">
+                        <span class="text-indigo-700 flex items-center gap-2">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                            Biểu đồ so sánh Điện Áp PCC
+                        </span>
+                        <div class="flex gap-6 text-sm font-medium">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-slate-400"></span> Ko điều khiển</span>
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-emerald-500"></span> Có Fixed Cos Phi</span>
+                        </div>
+                    </h2>
+                    <div class="h-72 w-full mt-2">
+                        <canvas id="voltageChart"></canvas>
+                    </div>
+                </div>
+
+                <div id="conclusion_box" class="p-5 rounded-xl border flex items-start text-base bg-slate-50 border-slate-200 shadow-sm mb-10">
+                    <div class="text-3xl mr-4">💡</div>
+                    <div>
+                        <strong class="block text-slate-800 mb-1">Đánh giá hiệu quả tự động:</strong>
+                        <span id="conclusion_text" class="text-slate-600">Hãy thay đổi thanh trượt Cos Phi ở bảng điều khiển để xem sự khác biệt.</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const V_SOURCE = 230;
+        const R = 0.5;
+        const X = 0.1;
+        const Q_LOAD = 500;
+        const V_MAX = 253; // +10%
+        const V_MIN = 207; // -10%
+
+        // Inputs
+        const sliderPV = document.getElementById('slider_pv');
+        const sliderLoad = document.getElementById('slider_load');
+        const sliderPF = document.getElementById('slider_pf');
+        
+        // Displays
+        const valPV = document.getElementById('val_pv');
+        const valLoad = document.getElementById('val_load');
+        const valPF = document.getElementById('val_pf');
+        const pfStatusText = document.getElementById('pf_status_text');
+        const lblPfTitle = document.getElementById('lbl_pf_title');
+        const lblQAction = document.getElementById('lbl_q_action');
+
+        // Chart Init
+        const ctx = document.getElementById('voltageChart').getContext('2d');
+        const voltageChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Nguồn (Trạm)', 'Giữa đường dây', 'Điểm nối lưới (PCC)'],
+                datasets: [
+                    { label: 'Ngưỡng +10%', data: [253, 253, 253], borderColor: '#ef4444', borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false },
+                    { label: 'Ngưỡng -10%', data: [207, 207, 207], borderColor: '#f97316', borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false },
+                    { label: 'V_pcc (Ko bù)', data: [230, 230, 230], borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 4, pointRadius: 5, fill: false, tension: 0.1 },
+                    { label: 'V_pcc (Có bù)', data: [230, 230, 230], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 4, pointRadius: 7, fill: true, tension: 0.1 }
+                ]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                scales: { y: { min: 180, max: 280 } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function updateSimulation() {
+            const P_pv = parseFloat(sliderPV.value);
+            const P_load = parseFloat(sliderLoad.value);
+            const pfRaw = parseFloat(sliderPF.value); // -20 to 20
+            
+            // 1. Calculate Power Factor & Q_pv
+            // pfRaw: -20 = 0.8 (Hút), 0 = 1.0, 20 = 0.8 (Phát)
+            const pf = 1.0 - (Math.abs(pfRaw) / 100); 
+            let q_pv = 0;
+            
+            if (pfRaw < 0) {
+                // Hút Q (Leading) -> Âm từ góc nhìn Inverter bơm ra lưới
+                q_pv = -P_pv * Math.tan(Math.acos(pf));
+                pfStatusText.textContent = `Inverter đang HÚT Q để Kéo giảm điện áp.`;
+                pfStatusText.className = "text-xs mt-3 font-bold text-center text-sky-700 bg-sky-100 p-2 rounded border border-sky-200";
+                lblQAction.textContent = `Hút ${Math.abs(Math.round(q_pv))} VAr`;
+                lblQAction.className = "text-xs text-sky-700 font-bold mt-1";
+            } else if (pfRaw > 0) {
+                // Phát Q (Lagging)
+                q_pv = P_pv * Math.tan(Math.acos(pf));
+                pfStatusText.textContent = `Inverter đang PHÁT Q để Nâng điện áp.`;
+                pfStatusText.className = "text-xs mt-3 font-bold text-center text-orange-700 bg-orange-100 p-2 rounded border border-orange-200";
+                lblQAction.textContent = `Phát ${Math.round(q_pv)} VAr`;
+                lblQAction.className = "text-xs text-orange-600 font-bold mt-1";
+            } else {
+                pfStatusText.textContent = `Chỉ phát P (Cos Phi = 1.0).`;
+                pfStatusText.className = "text-xs mt-3 font-medium text-center text-slate-600 bg-white p-2 rounded border border-slate-200";
+                lblQAction.textContent = `Không can thiệp Q`;
+                lblQAction.className = "text-xs text-slate-500 font-medium mt-1";
+            }
+
+            // Update UI inputs
+            valPV.textContent = P_pv + ' W';
+            valLoad.textContent = P_load + ' W';
+            valPF.textContent = pfRaw < 0 ? pf.toFixed(2) + ' (Hút)' : (pfRaw > 0 ? pf.toFixed(2) + ' (Phát)' : '1.0');
+            lblPfTitle.textContent = pf.toFixed(2);
+
+            const P_net = P_pv - P_load;
+
+            // ==========================================
+            // HỆ THỐNG 1: KHÔNG BÙ (Q_pv = 0)
+            // ==========================================
+            const Q_net_1 = -Q_LOAD; // Chỉ có tải tiêu thụ
+            const deltaV_1 = (P_net * R + Q_net_1 * X) / V_SOURCE;
+            const V_pcc_1 = V_SOURCE + deltaV_1;
+            
+            document.getElementById('pnet_val_1').textContent = P_net;
+            document.getElementById('dv_val_1').textContent = (deltaV_1 > 0 ? '+' : '') + deltaV_1.toFixed(2);
+            document.getElementById('vpcc_val_title_1').textContent = V_pcc_1.toFixed(1) + 'V';
+            document.getElementById('delta_u_1').textContent = (deltaV_1 > 0 ? '+' : '') + deltaV_1.toFixed(1) + 'V';
+            document.getElementById('pcc_tag_1').textContent = V_pcc_1.toFixed(1) + 'V';
+
+            // Cảnh báo Hệ thống 1
+            const tag1 = document.getElementById('pcc_tag_1');
+            const title1 = document.getElementById('vpcc_val_title_1');
+            if (V_pcc_1 > V_MAX) {
+                tag1.className = tag1.className.replace(/bg-\w+-\d+/, 'bg-red-600').replace('animate-pulse', '') + ' animate-pulse';
+                title1.className = "text-lg font-black text-red-600 animate-pulse";
+            }
+            else if (V_pcc_1 < V_MIN) {
+                tag1.className = tag1.className.replace(/bg-\w+-\d+/, 'bg-orange-600').replace('animate-pulse', '') + ' animate-pulse';
+                title1.className = "text-lg font-black text-orange-600 animate-pulse";
+            }
+            else {
+                tag1.className = tag1.className.replace(/bg-\w+-\d+/, 'bg-slate-700').replace('animate-pulse', '');
+                title1.className = "text-lg font-black text-blue-600";
+            }
+
+            // Animation Flow Tắt/Bật khi P_pv = 0
+            if (P_pv > 0) {
+                document.getElementById('flow_inv_pcc_1').style.display = 'block';
+                document.getElementById('flow_pv_inv_1').style.display = 'block';
+                document.getElementById('flow_inv_pcc_2').style.display = 'block';
+                document.getElementById('flow_pv_inv_2').style.display = 'block';
+            } else {
+                document.getElementById('flow_inv_pcc_1').style.display = 'none';
+                document.getElementById('flow_pv_inv_1').style.display = 'none';
+                document.getElementById('flow_inv_pcc_2').style.display = 'none';
+                document.getElementById('flow_pv_inv_2').style.display = 'none';
+            }
+
+            // Animation Grid 1
+            const gridFlow1 = document.getElementById('flow_grid_1').querySelector('div');
+            if (P_net > 0) gridFlow1.className = 'arrow-flow arrow-flow-reverse';
+            else if (P_net < 0) gridFlow1.className = 'arrow-flow';
+            else gridFlow1.className = '';
+
+            // ==========================================
+            // HỆ THỐNG 2: CÓ BÙ FIXED COS PHI
+            // ==========================================
+            const Q_net_2 = q_pv - Q_LOAD; 
+            const deltaV_2 = (P_net * R + Q_net_2 * X) / V_SOURCE;
+            const V_pcc_2 = V_SOURCE + deltaV_2;
+
+            document.getElementById('qpv_val_2').textContent = Math.round(q_pv) + ' VAr';
+            document.getElementById('qnet_val_2').textContent = Math.round(Q_net_2);
+            document.getElementById('dv_val_2').textContent = (deltaV_2 > 0 ? '+' : '') + deltaV_2.toFixed(2);
+            document.getElementById('vpcc_val_title_2').textContent = V_pcc_2.toFixed(1) + 'V';
+            document.getElementById('delta_u_2').textContent = (deltaV_2 > 0 ? '+' : '') + deltaV_2.toFixed(1) + 'V';
+            document.getElementById('pcc_tag_2').textContent = V_pcc_2.toFixed(1) + 'V';
+            document.getElementById('q_pv_display').textContent = `Q = ${Math.round(q_pv)}`;
+
+            // Cảnh báo Hệ thống 2
+            const tag2 = document.getElementById('pcc_tag_2');
+            const title2 = document.getElementById('vpcc_val_title_2');
+            if (V_pcc_2 > V_MAX) {
+                tag2.className = tag2.className.replace(/bg-\w+-\d+/, 'bg-red-600').replace('animate-pulse', '') + ' animate-pulse';
+                title2.className = "text-lg font-black text-red-600 animate-pulse";
+            }
+            else if (V_pcc_2 < V_MIN) {
+                tag2.className = tag2.className.replace(/bg-\w+-\d+/, 'bg-orange-600').replace('animate-pulse', '') + ' animate-pulse';
+                title2.className = "text-lg font-black text-orange-600 animate-pulse";
+            }
+            else {
+                tag2.className = tag2.className.replace(/bg-\w+-\d+/, 'bg-emerald-600').replace('animate-pulse', '');
+                title2.className = "text-lg font-black text-emerald-600";
+            }
+
+            // Animation Grid 2
+            const gridFlow2 = document.getElementById('flow_grid_2').querySelector('div');
+            if (P_net > 0) gridFlow2.className = 'arrow-flow arrow-flow-reverse';
+            else if (P_net < 0) gridFlow2.className = 'arrow-flow';
+            else gridFlow2.className = '';
+
+            // Animation Q_pv Flow (CONTINUOUS từ Lưới đến INV)
+            const qFlowContainer = document.getElementById('flow_q_continuous');
+            const qFlow = qFlowContainer.querySelector('div');
+            if (q_pv < -10) { // Hút Q (Lưới -> INV)
+                qFlowContainer.style.display = 'block';
+                qFlow.className = 'arrow-flow arrow-flow-q-hut';
+            } else if (q_pv > 10) { // Phát Q (INV -> Lưới)
+                qFlowContainer.style.display = 'block';
+                qFlow.className = 'arrow-flow arrow-flow-q-phat';
+            } else {
+                qFlowContainer.style.display = 'none';
+            }
+
+            // ==========================================
+            // CẬP NHẬT BIỂU ĐỒ & NHẬN XÉT
+            // ==========================================
+            voltageChart.data.datasets[2].data = [V_SOURCE, V_SOURCE + deltaV_1/2, V_pcc_1];
+            voltageChart.data.datasets[3].data = [V_SOURCE, V_SOURCE + deltaV_2/2, V_pcc_2];
+            voltageChart.update('none');
+
+            const concBox = document.getElementById('conclusion_box');
+            const concText = document.getElementById('conclusion_text');
+            
+            if (Math.abs(V_pcc_1 - V_pcc_2) < 0.5) {
+                concBox.className = "p-5 rounded-xl border flex items-start text-base bg-slate-50 border-slate-200 shadow-sm mb-10";
+                concText.innerHTML = "Inverter chưa tham gia bù Q (hoặc bù rất ít). Điện áp ở hai hệ thống tương đương nhau.";
+            } else if (V_pcc_1 > V_MAX && V_pcc_2 <= V_MAX) {
+                concBox.className = "p-5 rounded-xl border flex items-start text-base bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm mb-10";
+                concText.innerHTML = "<b>CỨU NGUY THÀNH CÔNG:</b> Việc cài đặt Cos Phi Hút Q đã giúp kéo điện áp tại PCC từ mức nguy hiểm ("+V_pcc_1.toFixed(1)+"V) xuống mức an toàn ("+V_pcc_2.toFixed(1)+"V). Biến tần không bị ngắt sự cố.";
+            } else if (V_pcc_1 < V_MIN && V_pcc_2 >= V_MIN) {
+                concBox.className = "p-5 rounded-xl border flex items-start text-base bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm mb-10";
+                concText.innerHTML = "<b>CỨU NGUY THÀNH CÔNG:</b> Việc cài đặt Cos Phi Phát Q đã giúp nâng điện áp sụt giảm ("+V_pcc_1.toFixed(1)+"V) lên mức an toàn ("+V_pcc_2.toFixed(1)+"V).";
+            } else if (V_pcc_2 > V_pcc_1 && V_pcc_1 > 240) {
+                 concBox.className = "p-5 rounded-xl border flex items-start text-base bg-red-50 border-red-300 text-red-800 shadow-sm mb-10";
+                 concText.innerHTML = "<b>CÀI ĐẶT SAI LẦM:</b> Điện áp đang cao mà bạn lại cho Inverter PHÁT Q. Điều này làm điện áp bị đẩy lên cao hơn nữa ("+V_pcc_2.toFixed(1)+"V). Hãy kéo thanh trượt sang TRÁI (Hút Q).";
+            } else if (V_pcc_2 < V_pcc_1 && V_pcc_1 < 220) {
+                 concBox.className = "p-5 rounded-xl border flex items-start text-base bg-red-50 border-red-300 text-red-800 shadow-sm mb-10";
+                 concText.innerHTML = "<b>CÀI ĐẶT SAI LẦM:</b> Điện áp đang thấp mà bạn lại cho Inverter HÚT Q. Điều này làm điện áp sụt nghiêm trọng hơn ("+V_pcc_2.toFixed(1)+"V). Hãy kéo thanh trượt sang PHẢI (Phát Q).";
+            } else {
+                concBox.className = "p-5 rounded-xl border flex items-start text-base bg-blue-50 border-blue-200 text-blue-800 shadow-sm mb-10";
+                concText.innerHTML = `Điều khiển Fixed Cos Phi đang làm thay đổi áp <b>${Math.abs(V_pcc_2 - V_pcc_1).toFixed(1)}V</b> so với việc không bù.`;
+            }
+        }
+
+        // Event Listeners
+        sliderPV.addEventListener('input', updateSimulation);
+        sliderLoad.addEventListener('input', updateSimulation);
+        sliderPF.addEventListener('input', updateSimulation);
+        
+        // Initial run
+        updateSimulation();
+    </script>
+</body>
+</html>
