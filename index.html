@@ -265,7 +265,7 @@
                             </div>
                         </div>
 
-                        <!-- Tải (Đã khôi phục hiệu ứng dòng chảy xuống) -->
+                        <!-- Tải -->
                         <div class="absolute left-[45%] top-1/2 pt-4 -translate-x-1/2 flex flex-col items-center z-10">
                             <div class="w-1.5 h-10 flow-line mb-1 relative">
                                 <div class="arrow-flow arrow-flow-down arrow-flow-load"></div>
@@ -300,9 +300,9 @@
 
                     <div class="p-4 border-t border-slate-100 bg-white">
                         <div class="math-block text-sm flex flex-col gap-1.5">
-                            <div>P_net = P_inv - P_load = <span id="pnet_val_1" class="font-bold text-slate-800"></span> W</div>
-                            <div>Q_net = 0 - 500 = <strong>-500</strong> VAr</div>
-                            <div>ΔV = (P_net×0.5 + Q_net×0.1)/230 = <strong class="text-base"><span id="dv_val_1"></span> V</strong></div>
+                            <div id="math_pnet_1"></div>
+                            <div id="math_qnet_1"></div>
+                            <div id="math_dv_1"></div>
                         </div>
                     </div>
                 </div>
@@ -354,7 +354,7 @@
                             </div>
                         </div>
 
-                        <!-- Tải (Đã khôi phục hiệu ứng dòng chảy xuống) -->
+                        <!-- Tải -->
                         <div class="absolute left-[45%] top-1/2 pt-4 -translate-x-1/2 flex flex-col items-center z-10">
                             <div class="w-1.5 h-10 flow-line mb-1 relative">
                                 <div class="arrow-flow arrow-flow-down arrow-flow-load"></div>
@@ -389,9 +389,9 @@
 
                     <div class="p-4 border-t border-slate-100 bg-white">
                         <div class="math-block text-sm !border-emerald-500 bg-emerald-50/30 flex flex-col gap-1.5">
-                            <div>Q_inv = P_pv × tan(φ) = <span id="qpv_val_2" class="font-bold text-sky-600"></span></div>
-                            <div>Q_net = Q_inv - 500 = <strong id="qnet_val_2" class="text-slate-800"></strong> VAr</div>
-                            <div>ΔV_mới = (P_net×0.5 + Q_net×0.1)/230 = <strong class="text-base"><span id="dv_val_2"></span> V</strong></div>
+                            <div id="math_qinv_2"></div>
+                            <div id="math_qnet_2"></div>
+                            <div id="math_dv_2"></div>
                         </div>
                     </div>
                 </div>
@@ -512,8 +512,11 @@
             const deltaV_1 = (P_net * R + Q_net_1 * X) / V_SOURCE;
             const V_pcc_1 = V_SOURCE + deltaV_1;
             
-            document.getElementById('pnet_val_1').textContent = P_net;
-            document.getElementById('dv_val_1').textContent = (deltaV_1 > 0 ? '+' : '') + deltaV_1.toFixed(2);
+            // Cập nhật công thức thế số cho Hệ Thống 1
+            document.getElementById('math_pnet_1').innerHTML = `P_net = P_inv - P_load = ${P_pv} - ${P_load} = <strong class="text-slate-800">${P_net} W</strong>`;
+            document.getElementById('math_qnet_1').innerHTML = `Q_net = Q_inv - Q_load = 0 - 500 = <strong>-500 VAr</strong>`;
+            document.getElementById('math_dv_1').innerHTML = `ΔV = (P_net×R + Q_net×X)/U = (${P_net} × 0.5 + (-500) × 0.1) / 230 = <strong class="text-base">${(deltaV_1 > 0 ? '+' : '') + deltaV_1.toFixed(2)} V</strong>`;
+
             document.getElementById('vpcc_val_title_1').textContent = V_pcc_1.toFixed(1) + 'V';
             document.getElementById('delta_u_1').textContent = (deltaV_1 > 0 ? '+' : '') + deltaV_1.toFixed(1) + 'V';
             document.getElementById('pcc_tag_1').textContent = V_pcc_1.toFixed(1) + 'V';
@@ -560,9 +563,16 @@
             const deltaV_2 = (P_net * R + Q_net_2 * X) / V_SOURCE;
             const V_pcc_2 = V_SOURCE + deltaV_2;
 
-            document.getElementById('qpv_val_2').textContent = Math.round(q_pv) + ' VAr';
-            document.getElementById('qnet_val_2').textContent = Math.round(Q_net_2);
-            document.getElementById('dv_val_2').textContent = (deltaV_2 > 0 ? '+' : '') + deltaV_2.toFixed(2);
+            // Cập nhật công thức thế số cho Hệ Thống 2
+            let q_pv_rounded = Math.round(q_pv);
+            let q_net_2_rounded = Math.round(Q_net_2);
+            let tan_phi = (Math.tan(Math.acos(pf)) * (pfRaw < 0 ? -1 : (pfRaw > 0 ? 1 : 0))).toFixed(3);
+            let qnet2_str = q_net_2_rounded < 0 ? `(${q_net_2_rounded})` : q_net_2_rounded;
+            
+            document.getElementById('math_qinv_2').innerHTML = `Q_inv = P_pv × tan(φ) = ${P_pv} × ${tan_phi} = <strong class="text-sky-600">${q_pv_rounded} VAr</strong>`;
+            document.getElementById('math_qnet_2').innerHTML = `Q_net = Q_inv - Q_load = ${q_pv_rounded} - 500 = <strong class="text-slate-800">${q_net_2_rounded} VAr</strong>`;
+            document.getElementById('math_dv_2').innerHTML = `ΔV_mới = (P_net×R + Q_net×X)/U = (${P_net} × 0.5 + ${qnet2_str} × 0.1) / 230 = <strong class="text-base">${(deltaV_2 > 0 ? '+' : '') + deltaV_2.toFixed(2)} V</strong>`;
+
             document.getElementById('vpcc_val_title_2').textContent = V_pcc_2.toFixed(1) + 'V';
             document.getElementById('delta_u_2').textContent = (deltaV_2 > 0 ? '+' : '') + deltaV_2.toFixed(1) + 'V';
             document.getElementById('pcc_tag_2').textContent = V_pcc_2.toFixed(1) + 'V';
