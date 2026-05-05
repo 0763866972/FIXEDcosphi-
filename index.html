@@ -502,7 +502,7 @@
             if (pfRaw < 0) {
                 // Hút Q (Leading) -> Âm từ góc nhìn Inverter bơm ra lưới
                 q_pv = -P_pv * Math.tan(Math.acos(pf));
-                pfStatusText.textContent = `Inverter đang HÚT Q để Kéo
+                pfStatusText.textContent = `Inverter HÚT Q để Kéo
                  giảm điện áp.`;
                 pfStatusText.className = "text-xs mt-3 font-bold text-center text-sky-700 bg-sky-100 p-2 rounded border border-sky-200 whitespace-nowrap";
                 lblQAction.textContent = `Hút ${Math.abs(Math.round(q_pv))} VAr`;
@@ -510,7 +510,7 @@
             } else if (pfRaw > 0) {
                 // Phát Q (Lagging)
                 q_pv = P_pv * Math.tan(Math.acos(pf));
-                pfStatusText.textContent = `Inverter đang PHÁT Q để Nâng điện áp.`;
+                pfStatusText.textContent = `Inverter PHÁT Q để Nâng điện áp.`;
                 pfStatusText.className = "text-xs mt-3 font-bold text-center text-orange-700 bg-orange-100 p-2 rounded border border-orange-200 whitespace-nowrap";
                 lblQAction.textContent = `Phát ${Math.round(q_pv)} VAr`;
                 lblQAction.className = "text-xs text-orange-600 font-bold mt-1";
